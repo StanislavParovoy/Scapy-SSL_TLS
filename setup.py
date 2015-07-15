@@ -6,6 +6,7 @@ from __future__ import with_statement
 import fileinput
 import os
 import sys
+import shutil
 from setuptools import setup
 from setuptools.command.install import install as _install
 
@@ -65,6 +66,11 @@ def get_layer_files_dst(sites, path="scapy_ssl_tls"):
             (os.path.join(scapy_location, "layers"), layer_files))
     return data_files
 
+def install_for_scapy(data_files):
+    for destination,sources in data_files:
+        for f in sources:
+            print("Copying %s to %s"%(f,os.path.join(destination,os.path.split(f)[1])))
+            shutil.copy2(os.path.join(os.path.dirname(__file__),f),os.path.join(destination,os.path.split(f)[1]))
 
 class install(_install):
 
@@ -78,10 +84,15 @@ def _post_install(dir_):
     """ Patches scapy config.py to add autoloading of the ssl_tls layer
     Takes a backup in the form of a config.py.bak file
     """
+    # copy layer files
+    layer_files = get_layer_files_dst(get_site_packages())
+    install_for_scapy(layer_files)
+    # fix config.py
     scapy_locations = get_scapy_locations(get_site_packages())
     for scapy_location in scapy_locations:
         scapy_config = os.path.join(scapy_location, "config.py")
         processing_layer_list = False
+        print ("Patching %s load_layers"%scapy_config)
         for line in fileinput.input(scapy_config, inplace=1, backup=".bak"):
             if line.strip().startswith("load_layers"):
                 print(line, end="")
@@ -123,6 +134,6 @@ setup(
     tests_require=["nose", "scapy", "pycrypto"],
     # Change once virtualenv bug is fixed
     # data_files = get_layer_files_dst(sites=site.getsitepackages())
-    data_files=get_layer_files_dst(get_site_packages()),
+    # data_files=get_layer_files_dst(get_site_packages()),
     cmdclass={"install": install}
 )
